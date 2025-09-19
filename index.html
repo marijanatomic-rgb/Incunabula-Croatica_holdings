@@ -3,275 +3,106 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Inkunabule — mjesta čuvanja (kompaktni filtri)</title>
+<title>Inkunabule — mjesta čuvanja (accordion po ustanovama)</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 <style>
   html, body, #map { height:100%; margin:0; }
-  /* FAB gumb */
-  #togglePanel {
-    position:absolute; bottom:14px; left:14px; z-index:1100;
-    background:#fff; border:1px solid #aaa; border-radius:14px; padding:12px 16px;
-    cursor:pointer; font-size:22px; box-shadow:0 3px 10px rgba(0,0,0,0.18); }
-  /* Drawer + backdrop */
-  #backdrop {
-    position:fixed; inset:0; background:rgba(0,0,0,0.25); z-index:999; display:none; }
-  .drawer {
-    position:fixed; top:0; right:-360px; width:320px; height:100%;
-    background:#fff; border-left:1px solid #ddd; box-shadow:-3px 0 12px rgba(0,0,0,0.15);
-    z-index:1000; transition:right .25s ease; padding:10px 12px; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; font-size:14px; }
-  .drawer.open { right:0; }
-  .drawer h3 { margin:6px 0 6px 0; font-size:16px; }
-  .drawer .close { position:absolute; right:8px; top:8px; border:none; background:transparent; font-size:20px; cursor:pointer; }
-  .drawer label { display:block; margin-top:6px; font-weight:600; }
-  .drawer select, .drawer input[type="number"] {
-    width:100%; padding:8px 10px; border:1px solid #bbb; border-radius:8px; font-size:14px; }
-  .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-  .hint { font-size:12px; color:#555; margin:4px 0 6px 0; }
 
-  /* Kompaktna visina lista */
-  select[multiple] { height:140px; }
+  /* Popup — širok */
+  .leaflet-popup-content-wrapper { border-radius:14px; max-width: 860px !important; }
+  .leaflet-popup-content { margin:10px; width: 820px !important; }
+  .tab-wrap { max-height: 520px; overflow:auto; }
 
-  /* Collapsible sekcije */
-  details { border:1px solid #e5e5e5; border-radius:8px; padding:6px 8px; margin-top:8px; }
-  details > summary { cursor:pointer; font-weight:700; list-style:none; }
-  details > summary::-webkit-details-marker { display:none; }
-
-  /* Tooltip i popup */
-  .leaflet-tooltip { font-size:13px; }
-  .leaflet-popup-content-wrapper { border-radius:14px; }
-  .leaflet-popup-content { margin:10px 10px 6px 10px; }
-  .tab-wrap { font-family:inherit; max-height:420px; overflow:auto; }
-  .tab-input { position:absolute; opacity:0; }
-  .tab-label { display:inline-block; padding:5px 8px; margin-right:6px; border:1px solid #888; border-bottom:none;
-               border-radius:8px 8px 0 0; background:#f7f7f7; cursor:pointer; font-size:13px; }
-  .tab-panel { border:1px solid #888; padding:8px; background:#fff; border-radius:0 8px 8px 8px; display:none; }
-  .tab-input:checked + .tab-label { background:#fff; font-weight:700; }
-  .tab-input:checked + .tab-label + .tab-panel { display:block; }
-
+  /* Accordion */
   .acc-item { border-bottom:1px solid #eee; }
-  .acc-head { cursor:pointer; padding:6px 0; font-weight:600; }
-  .acc-body { display:none; padding:4px 0 8px 6px; }
-  .muted { color:#555; font-size:12px; margin:2px 0 8px 0; }
+  .acc-head { cursor:pointer; padding:8px 0; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .acc-head .count { color:#333; font-weight:600; }
+  .acc-body { display:none; padding:6px 0 10px 6px; }
 
-  .table-mini { width:100%; border-collapse:collapse; font-size:13px; table-layout: fixed; }
-  .table-mini th, .table-mini td { padding:5px 4px; border-bottom:1px solid #eee; word-break:break-word; overflow-wrap:anywhere; }
-  .table-mini th.num, .table-mini td.num { width:64px; text-align:right; }
+  /* Gumbi za sve/ništa */
+  .acc-actions { display:flex; gap:10px; margin:6px 0 8px 0; }
+  .btn { padding:6px 10px; border:1px solid #bbb; border-radius:8px; background:#fff; cursor:pointer; font-size:13px; }
+
+  /* Tablica unutar ustanove */
+  .table-mini { width:100%; border-collapse:collapse; font-size:14px; table-layout: auto; }
+  .table-mini th, .table-mini td {
+    padding:6px 8px; border-bottom:1px solid #eee; white-space: normal; word-break: normal; overflow-wrap:anywhere; vertical-align: top;
+  }
+  .table-mini th.num, .table-mini td.num { width:80px; text-align:right; }
 </style>
 </head>
 <body>
 <div id="map"></div>
-<button id="togglePanel" title="Filtri">≡</button>
-<div id="backdrop"></div>
-
-<!-- Drawer -->
-<div class="drawer" id="drawer">
-  <button class="close" id="closeDrawer" title="Zatvori">✕</button>
-  <h3>Filtri</h3>
-  <p class="hint">Odaberite jedno ili više polja i pritisnite <b>Primijeni</b>. Klik izvan ploče zatvara pult.</p>
-
-  <details open>
-    <summary>Osnovno</summary>
-    <label>Mjesto (multi)</label>
-    <select id="placeSel" multiple size="5"><option value="">(sva mjesta)</option></select>
-    <label>Ustanova (multi)</label>
-    <select id="instSel" multiple size="5"><option value="">(sve ustanove)</option></select>
-  </details>
-
-  <details>
-    <summary>Dodatno</summary>
-    <label>Tiskar (multi)</label>
-    <select id="prnSel" multiple size="5"><option value="">(svi tiskari)</option></select>
-    <label>Autor (multi)</label>
-    <select id="authSel" multiple size="5"><option value="">(svi autori)</option></select>
-    <div class="row">
-      <div><label>Godina od</label><input type="number" id="yMin" value="1470"></div>
-      <div><label>Godina do</label><input type="number" id="yMax" value="1501"></div>
-    </div>
-  </details>
-
-  <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-    <button id="applyBtn">Primijeni</button>
-    <button id="resetBtn">Poništi</button>
-  </div>
-</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
 const RAW = [{"place": "Bol", "lat": 43.2605186, "lon": 16.6520192, "institutions": [{"name": "Dominikanski samostan Sv. Marije Milosne", "count": 1, "exemplars": [{"institution": "Dominikanski samostan Sv. Marije Milosne", "author": "", "title": "Misal po zakonu rimskoga dvora", "year": 1483, "printer": "", "print_place": ""}]}], "total": 1}, {"place": "Cavtat", "lat": 42.5814314, "lon": 18.2177461, "institutions": [{"name": "Zbirka Baltazara Bogišića", "count": 33, "exemplars": [{"institution": "Zbirka Baltazara Bogišića", "author": "VARRO, MARCUS TERENTIUS", "title": "De lingua Latina lib. III.", "year": 1483, "printer": "Dobrićević, Dobrić Delsera, Miniatus", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "", "title": "Elegiae", "year": 1487, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "TIBULLUS, ALBIUS", "title": "Elegiae sive carmina", "year": 1486, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "", "title": "Statuta Cremonae", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "PUCIĆ, KARLO", "title": "Elegiarum libellus De laudibus Gnesae puellae", "year": 1495, "printer": "Damianus de Gorgonzola", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "PROPERTIUS, SEXTUS AURELIUS", "title": "Elegiae", "year": 1488, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "PROPERTIUS, SEXTUS AURELIUS", "title": "Elegiae", "year": 1486, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "PLUTARCHUS", "title": "Parallela minora", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "PLUTARCHUS", "title": "De claris mulieribus. De virtutibus mulierum.", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "NONIUS MARCELLUS", "title": "De proprietate Latini sermonis.", "year": 1483, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "NIKOLA MODRUŠKI", "title": "Oratio in funere Petri cardinalis s. Sixti habita.", "year": 1481, "printer": "Plannck, Stephan", "print_place": "Rim"}, {"institution": "Zbirka Baltazara Bogišića", "author": "NIKOLA MODRUŠKI", "title": "Oratio in funere Petri cardinalis s. Sixti habita.", "year": 1474, "printer": "Gensberg, Johannes", "print_place": "Rim"}, {"institution": "Zbirka Baltazara Bogišića", "author": "MARCHESINUS, JOHANNES", "title": "Mammotrectus super Bibliam.", "year": 1482, "printer": "Paltašić, Andrija Scotus, Octavianus", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "MACROBIUS, AURELIUS THEODOSIUS", "title": "In somnium Scipionis expositio. Saturnalia.", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "LUDOVICUS A TURRI DE VERONA", "title": "De immaculata conceptione B.V. Mariae", "year": 1486, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "LACTANTIUS, LUCIUS CAECILIUS FIRMIANUS", "title": "Opera", "year": 1478, "printer": "Paltašić, Andrija Dobrićević, Dobrić", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "JACOBUS PHILIPPUS DE BERGAMO", "title": "Supplementum chronicarum", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "GELLIUS, AULUS", "title": "Noctes Atticae", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "GELLIUS, AULUS", "title": "Noctes Atticae", "year": 1477, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "FESTUS, SEXTUS POMPEIUS", "title": "De verborum significatione", "year": 1483, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "DRAGIŠIĆ, JURAJ", "title": "Oratio funebris pro Junio Georgio habita", "year": 1499, "printer": "Nepoznat", "print_place": "Firenza"}, {"institution": "Zbirka Baltazara Bogišića", "author": "DIODORUS, SICULUS Tacitus, Gaius Cornelius", "title": "Bibliothecae historicae libri VI.", "year": 1476, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "CICERO, MARCUS TULLIUS", "title": "Epistolae ad familiares", "year": 1487, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "CATULLUS, GAIUS VALERIUS", "title": "Carmina", "year": 1486, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "BURLAEUS, GUALTHERUS", "title": "Expositio in artem veterem Porphyrii et Aristotelis", "year": 1492, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "BLONDUS, FLAVIUS", "title": "Roma instaurata.", "year": 1481, "printer": "Dobrićević, Dobrić", "print_place": "Verona"}, {"institution": "Zbirka Baltazara Bogišića", "author": "BALDUS DE UBALDIS", "title": "Consiliorum partes V.", "year": 1490, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Zbirka Baltazara Bogišića", "author": "AURELIUS, VICTOR SEXTUS", "title": "De viris illustribus", "year": 1477, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "AURELIUS, VICTOR SEXTUS", "title": "De viris illustribus", "year": 1477, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "ANTONINUS FLORENTINUS", "title": "Summa theologica. Pars III.", "year": 1485, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "ALBERTUS MAGNUS, SANCTUS", "title": "Compendium theologicae veritatis", "year": 1483, "printer": "Grgur Senjanin Jacobum Britannicum", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "ALBERTUS DE SAXONIA", "title": "De proportionibus.", "year": 1487, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Zbirka Baltazara Bogišića", "author": "AEGIDII, GUILLERMUS", "title": "Super coelestium motuum indigatione", "year": 1494, "printer": "Darleri, Carlo", "print_place": "Cremona"}]}], "total": 33}, {"place": "Cres", "lat": 44.960346, "lon": 14.4079371, "institutions": [{"name": "Franjevački samostan sv. Franje", "count": 1, "exemplars": [{"institution": "Franjevački samostan sv. Franje", "author": "", "title": "Senjski glagoljski misal", "year": 1494, "printer": "Bedrièić, Silvestar Turèić, Gašpar Baromić, Blaž", "print_place": "Senj"}]}], "total": 1}, {"place": "Dubrovnik", "lat": 42.6507, "lon": 18.0944, "institutions": [{"name": "Državni arhiv Dubrovnik", "count": 1, "exemplars": [{"institution": "Državni arhiv Dubrovnik", "author": "BALDUS DE UBALDIS", "title": "Consiliorum partes V.", "year": 1490, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}]}, {"name": "Franjevački samostan Male braće", "count": 10, "exemplars": [{"institution": "Franjevački samostan Male braće", "author": "SUETONIUS TRANQUILLUS, GAIUS", "title": "Vitae XII caesarum", "year": 1488, "printer": "Benedictis, Franciscus (Plato) de", "print_place": "Bologna"}, {"institution": "Franjevački samostan Male braće", "author": "ODONIS, GERALDUS", "title": "Expositio in Aristotelis Ethica", "year": 1482, "printer": "Dobrićević, Dobrić Manerva, Bonifacius de", "print_place": "Brescia"}, {"institution": "Franjevački samostan Male braće", "author": "HIERONYMUS, SANCTUS", "title": "Vita et transitus", "year": 1475, "printer": "Pietro, Gabriele di", "print_place": "Venecija"}, {"institution": "Franjevački samostan Male braće", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1496, "printer": "Vercellensis, Johannes Rubeus", "print_place": "Venecija"}, {"institution": "Franjevački samostan Male braće", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1480, "printer": "Typ. Hieronymi", "print_place": "Parma"}, {"institution": "Franjevački samostan Male braće", "author": "DRAGIŠIĆ, JURAJ", "title": "Oratio funebris pro Junio Georgio habita", "year": 1499, "printer": "Nepoznat", "print_place": "Firenza"}, {"institution": "Franjevački samostan Male braće", "author": "DRAGIŠIĆ, JURAJ", "title": "De natura angelica.", "year": 1499, "printer": "Libris, Bartholomeo de", "print_place": "Firenza"}, {"institution": "Franjevački samostan Male braće", "author": "CIPIKO, KORIOLAN", "title": "Petri Mocenici imperatoris gesta", "year": 1477, "printer": "Ratdolt, Erhard Löslein, Peter", "print_place": "Venecija"}, {"institution": "Franjevački samostan Male braće", "author": "Aristotelis", "title": "Auctoritates", "year": 1495, "printer": "Paganini, Paganino de’, st.", "print_place": "Venecija"}, {"institution": "Franjevački samostan Male braće", "author": "ALBERTUS MAGNUS, SANCTUS", "title": "Compendium theologicae veritatis", "year": 1483, "printer": "Grgur Senjanin Jacobum Britannicum", "print_place": "Venecija"}]}, {"name": "Znanstvena knjižnica", "count": 7, "exemplars": [{"institution": "Znanstvena knjižnica", "author": "JACOBUS PHILIPPUS DE BERGAMO", "title": "Supplementum chronicarum", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Znanstvena knjižnica", "author": "IUVENALIS, DECIMUS IUNIUS", "title": "Satyrae", "year": 1488, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Znanstvena knjižnica", "author": "GELLIUS, AULUS", "title": "Noctes Atticae", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Znanstvena knjižnica", "author": "DRAGIŠIĆ, JURAJ", "title": "De natura angelica.", "year": 1499, "printer": "Libris, Bartholomeo de", "print_place": "Firenza"}, {"institution": "Znanstvena knjižnica", "author": "CICERO, MARCUS TULLIUS", "title": "Epistole ad familiares", "year": 1480, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Znanstvena knjižnica", "author": "CICERO, MARCUS TULLIUS", "title": "De oratore", "year": 1478, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Znanstvena knjižnica", "author": "BLONDUS, FLAVIUS", "title": "Roma instaurata.", "year": 1481, "printer": "Dobrićević, Dobrić", "print_place": "Verona"}]}], "total": 18}, {"place": "Hvar", "lat": 43.1739411, "lon": 16.5565161, "institutions": [{"name": "Franjevački samostan Gospe od milosti", "count": 3, "exemplars": [{"institution": "Franjevački samostan Gospe od milosti", "author": "LUDOVICUS A TURRI DE VERONA", "title": "De immaculata conceptione B.V. Mariae", "year": 1486, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Franjevački samostan Gospe od milosti", "author": "HIERONYMUS, SANCTUS", "title": "Vitae sanctorum patrum, sive Vitas patrum", "year": 1476, "printer": "Miscomini, Antonio di Bartolommeo", "print_place": "Venecija"}, {"institution": "Franjevački samostan Gospe od milosti", "author": "CICERO, MARCUS TULLIUS", "title": "Epistole ad familiares", "year": 1480, "printer": "Paltašić, Andrija", "print_place": "Venecija"}]}, {"name": "Knjižnica Hvarske biskupije", "count": 2, "exemplars": [{"institution": "Knjižnica Hvarske biskupije", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1496, "printer": "Vercellensis, Johannes Rubeus", "print_place": "Venecija"}, {"institution": "Knjižnica Hvarske biskupije", "author": "HIERONYMUS, SANCTUS", "title": "Commentaria in Bibliam", "year": 1497, "printer": "Gregoriis, Johannes de", "print_place": "Venecija"}]}], "total": 5}, {"place": "Kampor", "lat": 44.7768332, "lon": 14.7279432, "institutions": [{"name": "Franjevački samostan sv. Bernardina Sijenskog", "count": 2, "exemplars": [{"institution": "Franjevački samostan sv. Bernardina Sijenskog", "author": "MARCHESINUS, JOHANNES", "title": "Mammotrectus super Bibliam.", "year": 1482, "printer": "Paltašić, Andrija Scotus, Octavianus", "print_place": "Venecija"}, {"institution": "Franjevački samostan sv. Bernardina Sijenskog", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1476, "printer": "Miscomini, Antonio di Bartolommeo", "print_place": "Venecija"}]}], "total": 2}, {"place": "Koprivnica", "lat": 46.1623335, "lon": 16.8307909, "institutions": [{"name": "Franjevački samostan sv. Antuna Padovanskog", "count": 1, "exemplars": [{"institution": "Franjevački samostan sv. Antuna Padovanskog", "author": "HIERONYMUS, SANCTUS", "title": "Commentaria in Bibliam", "year": 1497, "printer": "Gregoriis, Johannes de", "print_place": "Venecija"}]}], "total": 1}, {"place": "Košljun", "lat": 45.0333, "lon": 14.6166, "institutions": [{"name": "Franjevački samostan Navještenja Marijina", "count": 6, "exemplars": [{"institution": "Franjevački samostan Navještenja Marijina", "author": "ŠIMUN HVARANIN", "title": "De baptismo Sancti Spiritus et eius virtute", "year": 1477, "printer": "Gallo, Guglielmo", "print_place": "Venecija"}, {"institution": "Franjevački samostan Navještenja Marijina", "author": "HIERONYMUS, SANCTUS", "title": "Vitae sanctorum patrum, sive Vitas patrum", "year": 1483, "printer": "Scotus, Octavianus", "print_place": "Venecija"}, {"institution": "Franjevački samostan Navještenja Marijina", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1489, "printer": "Kessler, Nicolaus", "print_place": "Basel"}, {"institution": "Franjevački samostan Navještenja Marijina", "author": "Aristotelis", "title": "Auctoritates", "year": 1495, "printer": "Paganini, Paganino de’, st.", "print_place": "Venecija"}, {"institution": "Franjevački samostan Navještenja Marijina", "author": "ANTONINUS FLORENTINUS", "title": "Summa theologica. Pars III.", "year": 1485, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Franjevački samostan Navještenja Marijina", "author": "", "title": "Misal po zakonu rimskoga dvora", "year": 1483, "printer": "", "print_place": ""}]}], "total": 6}, {"place": "Kraj", "lat": 43.95, "lon": 15.4166, "institutions": [{"name": "Franjevački samostan sv. Duje", "count": 1, "exemplars": [{"institution": "Franjevački samostan sv. Duje", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1496, "printer": "Vercellensis, Johannes Rubeus", "print_place": "Venecija"}]}], "total": 1}, {"place": "Našice", "lat": 45.4907759, "lon": 18.0938075, "institutions": [{"name": "Franjevački samostan sv. Antuna Padovanskog", "count": 1, "exemplars": [{"institution": "Franjevački samostan sv. Antuna Padovanskog", "author": "HIERONYMUS, SANCTUS", "title": "Commentaria in Bibliam", "year": 1497, "printer": "Gregoriis, Johannes de", "print_place": "Venecija"}]}], "total": 1}, {"place": "Pula", "lat": 44.8666, "lon": 13.8496, "institutions": [{"name": "Sveučilišna knjižnica u Puli", "count": 2, "exemplars": [{"institution": "Sveučilišna knjižnica u Puli", "author": "VERGERIUS, PETRUS PAULUS", "title": "De ingenuis moribus ac liberalibus studiis", "year": 1475, "printer": "Siliprandi, Domenico", "print_place": "Padova"}, {"institution": "Sveučilišna knjižnica u Puli", "author": "PHALARIS", "title": "Epistolae", "year": 1498, "printer": "Pelusius, Bartholomaeus Bracius, Gabriel Bissolus, Johannes Mangius, Benedictus", "print_place": "Venecija"}]}], "total": 2}, {"place": "Rijeka", "lat": 45.3271, "lon": 14.4422, "institutions": [{"name": "Franjevački samostan Majke Božje Trsatske", "count": 1, "exemplars": [{"institution": "Franjevački samostan Majke Božje Trsatske", "author": "", "title": "EVANGELISTARIUM ILLYRICUM", "year": 1495, "printer": "Damianus de Gorgonzola", "print_place": "Venecija"}]}], "total": 1}, {"place": "Split", "lat": 43.5081, "lon": 16.4402, "institutions": [{"name": "Arheološki muzej", "count": 3, "exemplars": [{"institution": "Arheološki muzej", "author": "HIERONYMUS, SANCTUS", "title": "Vita et transitus", "year": 1490, "printer": "Bonaccorsi, Francesco", "print_place": "Firenza"}, {"institution": "Arheološki muzej", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1497, "printer": "Kessler, Nicolaus", "print_place": "Basel"}, {"institution": "Arheološki muzej", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1489, "printer": "Kessler, Nicolaus", "print_place": "Basel"}]}, {"name": "Bogoslovno sjemenište", "count": 1, "exemplars": [{"institution": "Bogoslovno sjemenište", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1476, "printer": "Miscomini, Antonio di Bartolommeo", "print_place": "Venecija"}]}, {"name": "Dominikanski samostan sv. Katarine", "count": 2, "exemplars": [{"institution": "Dominikanski samostan sv. Katarine", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1480, "printer": "Typ. Hieronymi", "print_place": "Parma"}, {"institution": "Dominikanski samostan sv. Katarine", "author": "HIERONYMUS, SANCTUS", "title": "Commentaria in Bibliam", "year": 1497, "printer": "Gregoriis, Johannes de", "print_place": "Venecija"}]}, {"name": "Franjevački samostan svetog Ante", "count": 1, "exemplars": [{"institution": "Franjevački samostan svetog Ante", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1480, "printer": "Typ. Hieronymi", "print_place": "Parma"}]}, {"name": "Katolički bogoslovni fakultet", "count": 1, "exemplars": [{"institution": "Katolički bogoslovni fakultet", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1497, "printer": "Kessler, Nicolaus", "print_place": "Basel"}]}, {"name": "Prva gimnazija Split", "count": 1, "exemplars": [{"institution": "Prva gimnazija Split", "author": "ARISTOTELES", "title": "Politica", "year": 1492, "printer": "Silber, Eucharius", "print_place": "Rim"}]}], "total": 9}, {"place": "Trogir", "lat": 43.5164142, "lon": 16.2497163, "institutions": [{"name": "Muzej grada Trogira", "count": 1, "exemplars": [{"institution": "Muzej grada Trogira", "author": "CIPIKO, KORIOLAN", "title": "Petri Mocenici imperatoris gesta", "year": 1477, "printer": "Ratdolt, Erhard Löslein, Peter", "print_place": "Venecija"}]}], "total": 1}, {"place": "Varaždin", "lat": 46.3079645, "lon": 16.3378198, "institutions": [{"name": "Franjevački samostan sv. Ivana Krstitelja", "count": 1, "exemplars": [{"institution": "Franjevački samostan sv. Ivana Krstitelja", "author": "HIERONYMUS, SANCTUS", "title": "Vitae sanctorum patrum, sive Vitas patrum", "year": 1483, "printer": "Scotus, Octavianus", "print_place": "Venecija"}]}], "total": 1}, {"place": "Visovac", "lat": 43.8611444, "lon": 15.9732853, "institutions": [{"name": "Franjevački samostan Gospe od anđela", "count": 1, "exemplars": [{"institution": "Franjevački samostan Gospe od anđela", "author": "AESOPUS", "title": "Aesopus moralisatus", "year": 1487, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}]}], "total": 1}, {"place": "Zadar", "lat": 44.1194, "lon": 15.2314, "institutions": [{"name": "Državni arhiv u Zadru", "count": 1, "exemplars": [{"institution": "Državni arhiv u Zadru", "author": "CIPIKO, KORIOLAN", "title": "Petri Mocenici imperatoris gesta", "year": 1477, "printer": "Ratdolt, Erhard Löslein, Peter", "print_place": "Venecija"}]}, {"name": "Franjevački samostan sv. Frane", "count": 7, "exemplars": [{"institution": "Franjevački samostan sv. Frane", "author": "HIERONYMUS, SANCTUS", "title": "Vitae sanctorum patrum, sive Vitas patrum", "year": 1479, "printer": "Girardengus, Nicolaus, de Novis", "print_place": "Venecija"}, {"institution": "Franjevački samostan sv. Frane", "author": "HIERONYMUS, SANCTUS", "title": "Epistole", "year": 1490, "printer": "Benalius, Bernardinus", "print_place": "Venecija"}, {"institution": "Franjevački samostan sv. Frane", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1480, "printer": "Typ. Hieronymi", "print_place": "Parma"}, {"institution": "Franjevački samostan sv. Frane", "author": "BARTOLUS DE SAXOFERRATO", "title": "Super secunda parte Digesti veteris cum additionibus Alexandri Tartagni.", "year": 1492, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Franjevački samostan sv. Frane", "author": "BARTOLUS DE SAXOFERRATO", "title": "Super prima parte Codicis cum additionibus Alexandri Tartagni.", "year": 1491, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Franjevački samostan sv. Frane", "author": "BARTOLUS DE SAXOFERRATO", "title": "Super secunda parte Codicis cum additionibus Alexandri Tartagni.", "year": 1490, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Franjevački samostan sv. Frane", "author": "BARTOLUS DE SAXOFERRATO", "title": "Super prima parte Digesti veteris cum additionibus Alexandri Tartagni.", "year": 1490, "printer": "Paltašić, Andrija", "print_place": "Venecija"}]}, {"name": "Nadbiskupski ordinarijat", "count": 1, "exemplars": [{"institution": "Nadbiskupski ordinarijat", "author": "HIERONYMUS, SANCTUS", "title": "Vita et transitus", "year": 1487, "printer": "Hannibal Foxius", "print_place": "Venecija"}]}, {"name": "Znanstvena knjižnica Sveučilišta u Zadru", "count": 3, "exemplars": [{"institution": "Znanstvena knjižnica Sveučilišta u Zadru", "author": "LACTANTIUS, LUCIUS CAECILIUS FIRMIANUS", "title": "Opera", "year": 1478, "printer": "Paltašić, Andrija Dobrićević, Dobrić", "print_place": "Venecija"}, {"institution": "Znanstvena knjižnica Sveučilišta u Zadru", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1496, "printer": "Vercellensis, Johannes Rubeus", "print_place": "Venecija"}, {"institution": "Znanstvena knjižnica Sveučilišta u Zadru", "author": "BLONDUS, FLAVIUS", "title": "Roma instaurata.", "year": 1481, "printer": "Dobrićević, Dobrić", "print_place": "Verona"}]}], "total": 12}, {"place": "Zagreb", "lat": 45.815, "lon": 15.9785, "institutions": [{"name": "Franjevački samostan sv. Franje Asiškog", "count": 1, "exemplars": [{"institution": "Franjevački samostan sv. Franje Asiškog", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1470, "printer": "Sweynheym, Konrad Pannartz, Arnold", "print_place": "Rim"}]}, {"name": "Knjižnica 'Juraj Habdelić'", "count": 4, "exemplars": [{"institution": "Knjižnica 'Juraj Habdelić'", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1476, "printer": "Miscomini, Antonio di Bartolommeo", "print_place": "Venecija"}, {"institution": "Knjižnica 'Juraj Habdelić'", "author": "HIERONYMUS, SANCTUS", "title": "Commentaria in Bibliam", "year": 1497, "printer": "Gregoriis, Johannes de", "print_place": "Venecija"}, {"institution": "Knjižnica 'Juraj Habdelić'", "author": "", "title": "EVANGELISTARIUM ILLYRICUM", "year": 1495, "printer": "Damianus de Gorgonzola", "print_place": "Venecija"}, {"institution": "Knjižnica 'Juraj Habdelić'", "author": "DRAGIŠIĆ, JURAJ", "title": "De natura angelica.", "year": 1499, "printer": "Libris, Bartholomeo de", "print_place": "Firenza"}]}, {"name": "Knjižnica Hrvatske akademije znanosti i umjetnosti", "count": 6, "exemplars": [{"institution": "Knjižnica Hrvatske akademije znanosti i umjetnosti", "author": "TERENTIUS AFER, PUBLIUS", "title": "Comoediae", "year": 1487, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Knjižnica Hrvatske akademije znanosti i umjetnosti", "author": "ŠIŽGORIĆ, JURAJ", "title": "Elegiarum et carminum libri tres.", "year": 1477, "printer": "Adamus, Rotwilensis", "print_place": "Venecija"}, {"institution": "Knjižnica Hrvatske akademije znanosti i umjetnosti", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1497, "printer": "Kessler, Nicolaus", "print_place": "Basel"}, {"institution": "Knjižnica Hrvatske akademije znanosti i umjetnosti", "author": "DRAGIŠIĆ, JURAJ", "title": "De natura angelica.", "year": 1499, "printer": "Libris, Bartholomeo de", "print_place": "Firenza"}, {"institution": "Knjižnica Hrvatske akademije znanosti i umjetnosti", "author": "", "title": "Misal po zakonu rimskoga dvora", "year": 1483, "printer": "", "print_place": ""}, {"institution": "Knjižnica Hrvatske akademije znanosti i umjetnosti", "author": "", "title": "Misal po zakonu rimskoga dvora", "year": 1483, "printer": "", "print_place": ""}]}, {"name": "Knjižnice Grada Zagreba", "count": 1, "exemplars": [{"institution": "Knjižnice Grada Zagreba", "author": "", "title": "Misal po zakonu rimskoga dvora", "year": 1483, "printer": "", "print_place": ""}]}, {"name": "Metropolitanska knjižnica", "count": 10, "exemplars": [{"institution": "Metropolitanska knjižnica", "author": "VALTURIUS, ROBERTUS", "title": "De re militari", "year": 1483, "printer": "Dobrićević, Dobrić", "print_place": "Verona"}, {"institution": "Metropolitanska knjižnica", "author": "MACROBIUS, AURELIUS THEODOSIUS", "title": "In somnium Scipionis expositio. Saturnalia.", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Metropolitanska knjižnica", "author": "MACROBIUS, AURELIUS THEODOSIUS", "title": "In somnium Scipionis expositio. Saturnalia.", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Metropolitanska knjižnica", "author": "HIERONYMUS, SANCTUS", "title": "Vitae sanctorum patrum, sive Vitas patrum", "year": 1483, "printer": "Scotus, Octavianus", "print_place": "Venecija"}, {"institution": "Metropolitanska knjižnica", "author": "HIERONYMUS, SANCTUS", "title": "Vita et transitus", "year": 1485, "printer": "Pasqualibus, Peregrinus de Bertochus, Dominicus", "print_place": "Venecija"}, {"institution": "Metropolitanska knjižnica", "author": "HIERONYMUS, SANCTUS", "title": "Vita et transitus", "year": 1485, "printer": "Pasqualibus, Peregrinus de Bertochus, Dominicus", "print_place": "Venecija"}, {"institution": "Metropolitanska knjižnica", "author": "GELLIUS, AULUS", "title": "Noctes Atticae", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Metropolitanska knjižnica", "author": "GELLIUS, AULUS", "title": "Noctes Atticae", "year": 1477, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Metropolitanska knjižnica", "author": "BARTOLUS DE SAXOFERRATO", "title": "Super secunda parte Digesti veteris cum additionibus Alexandri Tartagni.", "year": 1492, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Metropolitanska knjižnica", "author": "BARTOLUS DE SAXOFERRATO", "title": "Super prima parte Codicis cum additionibus Alexandri Tartagni.", "year": 1491, "printer": "Paltašić, Andrija", "print_place": "Venecija"}]}, {"name": "Muzej suvremene umjetnosti", "count": 1, "exemplars": [{"institution": "Muzej suvremene umjetnosti", "author": "HIERONYMUS, SANCTUS", "title": "Commentaria in Bibliam", "year": 1497, "printer": "Gregoriis, Johannes de", "print_place": "Venecija"}]}, {"name": "Nacionalna i sveučilišna knjižnica u Zagrebu", "count": 49, "exemplars": [{"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "VERGILIUS MARO, PUBLIUS", "title": "Opera", "year": 1488, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "VERGERIUS, PETRUS PAULUS", "title": "De ingenuis moribus ac liberalibus studiis", "year": 1497, "printer": "Tacuinus, Giovanni", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "VARRO, MARCUS TERENTIUS", "title": "De lingua Latina lib. III.", "year": 1483, "printer": "Dobrićević, Dobrić Delsera, Miniatus", "print_place": "Brescia"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "VALTURIUS, ROBERTUS", "title": "De re militari", "year": 1483, "printer": "Dobrićević, Dobrić", "print_place": "Verona"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "TORTELLIUS, JOHANNES", "title": "De orthographia dictionum e Graecis tractarum.", "year": 1488, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "TIBULLUS, ALBIUS", "title": "Elegiae", "year": 1487, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "ŠIMUN HVARANIN", "title": "De baptismo Sancti Spiritus et eius virtute", "year": 1477, "printer": "Gallo, Guglielmo", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "PUCIĆ, KARLO", "title": "Elegiarum libellus De laudibus Gnesae puellae", "year": 1495, "printer": "Damianus de Gorgonzola", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "PROPERTIUS, SEXTUS AURELIUS", "title": "Elegiae", "year": 1488, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "PROBUS, MARCUS VALERIUS", "title": "De interpretandis Romanorum litteris.", "year": 1486, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "", "title": "OFFICIUM", "year": 1501, "printer": "Dobrićević, Dobrić", "print_place": "Lyon"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "NIMIRA, MARTINUS DE", "title": "Sermo de passione Domini.", "year": 1494, "printer": "Silber, Eucharius", "print_place": "Rim"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "NIKOLA MODRUŠKI", "title": "Oratio in funere Reverendissimi domini D. Petri Cardinalis sancti Sixti habita a revere[n]do patre d[omi]no Nicolao ep[isco]po Modrusien[si]", "year": 1484, "printer": "Guldinbeck, Bartholomaeus", "print_place": "Rim"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "NIGER, FRANJO", "title": "Modus epistolandi.", "year": 1495, "printer": "Bevilacqua, Simone", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "NIGER, FRANJO", "title": "Modus epistolandi.", "year": 1492, "printer": "Capcasa, Matteo", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "LACTANTIUS, LUCIUS CAECILIUS FIRMIANUS", "title": "Opera", "year": 1478, "printer": "Paltašić, Andrija Dobrićević, Dobrić", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "JACOBUS PHILIPPUS DE BERGAMO", "title": "Supplementum chronicarum", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "JACOBUS DE VORAGINE", "title": "Legenda aurea sanctorum, sive Lombardica historia", "year": 1482, "printer": "Paltašić, Andrija Scotus, Octavianus", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "HIERONYMUS, SANCTUS", "title": "Vitae sanctorum patrum, sive Vitas patrum", "year": 1483, "printer": "Scotus, Octavianus", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "HIERONYMUS, SANCTUS", "title": "Vitae sanctorum patrum, sive Vitas patrum", "year": 1479, "printer": "Lichtenstein, Hermann", "print_place": "Vicenza"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1496, "printer": "Vercellensis, Johannes Rubeus", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1496, "printer": "Vercellensis, Johannes Rubeus", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1489, "printer": "Kessler, Nicolaus", "print_place": "Basel"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1476, "printer": "Miscomini, Antonio di Bartolommeo", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "GELLIUS, AULUS", "title": "Noctes Atticae", "year": 1485, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "GELLIUS, AULUS", "title": "Noctes Atticae", "year": 1477, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "FIDELIS, CASSANDRA", "title": "Oratio pro Bertucio Lamberto etc.", "year": 1489, "printer": "Wagner, Petrus", "print_place": "Nürnberg"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "FICINUS, MARSILIUS", "title": "De triplici vita", "year": 1498, "printer": "Pelusius, Bartholomaeus Bracius, Gabriel Bissolus, Johannes Mangius, Benedictus", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "DRAGIŠIĆ, JURAJ", "title": "De natura angelica.", "year": 1499, "printer": "Libris, Bartholomeo de", "print_place": "Firenza"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "DIONYSIUS CARTHUSIANUS", "title": "Dialogus Mariae et peccatoris etc.", "year": 1480, "printer": "Braem, Konrad", "print_place": "Löwen"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "DIODORUS, SICULUS Tacitus, Gaius Cornelius", "title": "Bibliothecae historicae libri VI.", "year": 1476, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "CIPIKO, KORIOLAN", "title": "Petri Mocenici imperatoris gesta", "year": 1477, "printer": "Ratdolt, Erhard Löslein, Peter", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "CICERO, MARCUS TULLIUS", "title": "Epistolae ad familiares (comm. Hubertinus Clericus Crescentinas)", "year": 1488, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "BURLAEUS, GUALTHERUS", "title": "Expositio in artem veterem Porphyrii et Aristotelis", "year": 1492, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "BUNIĆ, JAKOV", "title": "De raptu Cerberi libri tres.", "year": 1490, "printer": "Plannck, Stephan", "print_place": "Rim"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "BLONDUS, FLAVIUS", "title": "Roma instaurata.", "year": 1481, "printer": "Dobrićević, Dobrić", "print_place": "Verona"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "BLONDUS, FLAVIUS", "title": "Roma instaurata.", "year": 1481, "printer": "Dobrićević, Dobrić", "print_place": "Verona"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "", "title": "BIBLIA", "year": 1484, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "BALDUS DE UBALDIS", "title": "Consiliorum partes V.", "year": 1490, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "ANTONINUS FLORENTINUS", "title": "Summa theologica. Pars III.", "year": 1485, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "ALIGHIERI, DANTE", "title": "La Commedia", "year": 1487, "printer": "Dobrićević, Dobrić", "print_place": "Brescia"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "ALBUMASAR", "title": "Introductorium in astronomiam", "year": 1489, "printer": "Ratdolt, Erhard", "print_place": "Augsburg"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "ALBERTUS MAGNUS, SANCTUS", "title": "Compendium theologicae veritatis", "year": 1483, "printer": "Grgur Senjanin Jacobum Britannicum", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "ALBERTUS MAGNUS, SANCTUS", "title": "Compendium theologicae veritatis", "year": 1483, "printer": "Grgur Senjanin Jacobum Britannicum", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "ALBERTUS DE SAXONIA", "title": "De proportionibus.", "year": 1487, "printer": "Paltašić, Andrija", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "", "title": "Misal po zakonu rimskoga dvora", "year": 1483, "printer": "", "print_place": ""}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "", "title": "Misal po zakonu rimskoga dvora", "year": 1483, "printer": "", "print_place": ""}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "", "title": "Breviarium romanum", "year": 1493, "printer": "Torresanus, Andreas, de Asula Baromić, Blaž", "print_place": "Venecija"}, {"institution": "Nacionalna i sveučilišna knjižnica u Zagrebu", "author": "", "title": "Breviarium romanum", "year": 1493, "printer": "Torresanus, Andreas, de Asula Baromić, Blaž", "print_place": "Venecija"}]}, {"name": "Samostan sv. Franje ksaverskoga", "count": 2, "exemplars": [{"institution": "Samostan sv. Franje ksaverskoga", "author": "", "title": "Misal po zakonu rimskoga dvora", "year": 1483, "printer": "", "print_place": ""}, {"institution": "Samostan sv. Franje ksaverskoga", "author": "Carcano, Michele", "title": "Spovid općena", "year": 1496, "printer": "Baromić, Blaž", "print_place": "Senj"}]}, {"name": "Staroslavenski institut", "count": 1, "exemplars": [{"institution": "Staroslavenski institut", "author": "", "title": "Misal po zakonu rimskoga dvora", "year": 1483, "printer": "", "print_place": ""}]}], "total": 75}, {"place": "Šibenik", "lat": 43.735, "lon": 15.895, "institutions": [{"name": "Franjevački samostan sv. Frane", "count": 5, "exemplars": [{"institution": "Franjevački samostan sv. Frane", "author": "ODONIS, GERALDUS", "title": "Expositio in Aristotelis Ethica", "year": 1482, "printer": "Dobrićević, Dobrić Manerva, Bonifacius de", "print_place": "Brescia"}, {"institution": "Franjevački samostan sv. Frane", "author": "HIERONYMUS, SANCTUS", "title": "Vita et transitus", "year": 1480, "printer": "Manzolus, Michael", "print_place": "Treviso"}, {"institution": "Franjevački samostan sv. Frane", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1497, "printer": "Rubeis, Laurentius de, de Valentia", "print_place": "Ferrara"}, {"institution": "Franjevački samostan sv. Frane", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1496, "printer": "Pincius, Doninus", "print_place": "Venecija"}, {"institution": "Franjevački samostan sv. Frane", "author": "HIERONYMUS, SANCTUS", "title": "Commentaria in Bibliam", "year": 1497, "printer": "Gregoriis, Johannes de", "print_place": "Venecija"}]}, {"name": "Franjevački samostan sv. Lovre", "count": 2, "exemplars": [{"institution": "Franjevački samostan sv. Lovre", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1496, "printer": "Vercellensis, Johannes Rubeus", "print_place": "Venecija"}, {"institution": "Franjevački samostan sv. Lovre", "author": "HIERONYMUS, SANCTUS", "title": "Epistolae", "year": 1470, "printer": "Sweynheym, Konrad Pannartz, Arnold", "print_place": "Rim"}]}], "total": 7}];
-const OPT_PLACES = ["Bol", "Cavtat", "Cres", "Dubrovnik", "Hvar", "Kampor", "Koprivnica", "Košljun", "Kraj", "Našice", "Pula", "Rijeka", "Split", "Trogir", "Varaždin", "Visovac", "Zadar", "Zagreb", "Šibenik"];
-const OPT_INSTS  = ["Arheološki muzej", "Bogoslovno sjemenište", "Dominikanski samostan Sv. Marije Milosne", "Dominikanski samostan sv. Katarine", "Državni arhiv Dubrovnik", "Državni arhiv u Zadru", "Franjevački samostan Gospe od anđela", "Franjevački samostan Gospe od milosti", "Franjevački samostan Majke Božje Trsatske", "Franjevački samostan Male braće", "Franjevački samostan Navještenja Marijina", "Franjevački samostan sv. Antuna Padovanskog", "Franjevački samostan sv. Bernardina Sijenskog", "Franjevački samostan sv. Duje", "Franjevački samostan sv. Frane", "Franjevački samostan sv. Franje", "Franjevački samostan sv. Franje Asiškog", "Franjevački samostan sv. Ivana Krstitelja", "Franjevački samostan sv. Lovre", "Franjevački samostan svetog Ante", "Katolički bogoslovni fakultet", "Knjižnica 'Juraj Habdelić'", "Knjižnica Hrvatske akademije znanosti i umjetnosti", "Knjižnica Hvarske biskupije", "Knjižnice Grada Zagreba", "Metropolitanska knjižnica", "Muzej grada Trogira", "Muzej suvremene umjetnosti", "Nacionalna i sveučilišna knjižnica u Zagrebu", "Nadbiskupski ordinarijat", "Prva gimnazija Split", "Samostan sv. Franje ksaverskoga", "Staroslavenski institut", "Sveučilišna knjižnica u Puli", "Zbirka Baltazara Bogišića", "Znanstvena knjižnica", "Znanstvena knjižnica Sveučilišta u Zadru"];
-const OPT_PRN    = ["Adamus, Rotwilensis", "Baromić, Blaž", "Bedrièić, Silvestar Turèić, Gašpar Baromić, Blaž", "Benalius, Bernardinus", "Benedictis, Franciscus (Plato) de", "Bevilacqua, Simone", "Bonaccorsi, Francesco", "Braem, Konrad", "Capcasa, Matteo", "Damianus de Gorgonzola", "Darleri, Carlo", "Dobrićević, Dobrić", "Dobrićević, Dobrić Delsera, Miniatus", "Dobrićević, Dobrić Manerva, Bonifacius de", "Gallo, Guglielmo", "Gensberg, Johannes", "Girardengus, Nicolaus, de Novis", "Gregoriis, Johannes de", "Grgur Senjanin Jacobum Britannicum", "Guldinbeck, Bartholomaeus", "Hannibal Foxius", "Kessler, Nicolaus", "Libris, Bartholomeo de", "Lichtenstein, Hermann", "Manzolus, Michael", "Miscomini, Antonio di Bartolommeo", "Nepoznat", "Paganini, Paganino de’, st.", "Paltašić, Andrija", "Paltašić, Andrija Dobrićević, Dobrić", "Paltašić, Andrija Scotus, Octavianus", "Pasqualibus, Peregrinus de Bertochus, Dominicus", "Pelusius, Bartholomaeus Bracius, Gabriel Bissolus, Johannes Mangius, Benedictus", "Pietro, Gabriele di", "Pincius, Doninus", "Plannck, Stephan", "Ratdolt, Erhard", "Ratdolt, Erhard Löslein, Peter", "Rubeis, Laurentius de, de Valentia", "Scotus, Octavianus", "Silber, Eucharius", "Siliprandi, Domenico", "Sweynheym, Konrad Pannartz, Arnold", "Tacuinus, Giovanni", "Torresanus, Andreas, de Asula Baromić, Blaž", "Typ. Hieronymi", "Vercellensis, Johannes Rubeus", "Wagner, Petrus"];
-const OPT_AUTH   = ["AEGIDII, GUILLERMUS", "AESOPUS", "ALBERTUS DE SAXONIA", "ALBERTUS MAGNUS, SANCTUS", "ALBUMASAR", "ALIGHIERI, DANTE", "ANTONINUS FLORENTINUS", "ARISTOTELES", "AURELIUS, VICTOR SEXTUS", "Aristotelis", "BALDUS DE UBALDIS", "BARTOLUS DE SAXOFERRATO", "BLONDUS, FLAVIUS", "BUNIĆ, JAKOV", "BURLAEUS, GUALTHERUS", "CATULLUS, GAIUS VALERIUS", "CICERO, MARCUS TULLIUS", "CIPIKO, KORIOLAN", "Carcano, Michele", "DIODORUS, SICULUS Tacitus, Gaius Cornelius", "DIONYSIUS CARTHUSIANUS", "DRAGIŠIĆ, JURAJ", "FESTUS, SEXTUS POMPEIUS", "FICINUS, MARSILIUS", "FIDELIS, CASSANDRA", "GELLIUS, AULUS", "HIERONYMUS, SANCTUS", "IUVENALIS, DECIMUS IUNIUS", "JACOBUS DE VORAGINE", "JACOBUS PHILIPPUS DE BERGAMO", "LACTANTIUS, LUCIUS CAECILIUS FIRMIANUS", "LUDOVICUS A TURRI DE VERONA", "MACROBIUS, AURELIUS THEODOSIUS", "MARCHESINUS, JOHANNES", "NIGER, FRANJO", "NIKOLA MODRUŠKI", "NIMIRA, MARTINUS DE", "NONIUS MARCELLUS", "ODONIS, GERALDUS", "PHALARIS", "PLUTARCHUS", "PROBUS, MARCUS VALERIUS", "PROPERTIUS, SEXTUS AURELIUS", "PUCIĆ, KARLO", "SUETONIUS TRANQUILLUS, GAIUS", "TERENTIUS AFER, PUBLIUS", "TIBULLUS, ALBIUS", "TORTELLIUS, JOHANNES", "VALTURIUS, ROBERTUS", "VARRO, MARCUS TERENTIUS", "VERGERIUS, PETRUS PAULUS", "VERGILIUS MARO, PUBLIUS", "ŠIMUN HVARANIN", "ŠIŽGORIĆ, JURAJ"];
-const YEAR_MIN   = 1470;
-const YEAR_MAX   = 1501;
 
-const map = L.map('map', { maxZoom:8, zoomSnap:0.5, zoomDelta:0.5 }).setView([45.1,15.2],6);
+const map = L.map('map', { maxZoom:8, worldCopyJump:false }).setView([45.1,15.2],6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
 const cluster = L.markerClusterGroup({ disableClusteringAtZoom:9, spiderfyOnMaxZoom:true });
 map.addLayer(cluster);
 
-// Drawer open/close
-const drawer = document.getElementById('drawer');
-const backdrop = document.getElementById('backdrop');
-function openDrawer(){ drawer.classList.add('open'); backdrop.style.display='block'; }
-function closeDrawer(){ drawer.classList.remove('open'); backdrop.style.display='none'; }
-document.getElementById('togglePanel').onclick = openDrawer;
-document.getElementById('closeDrawer').onclick = closeDrawer;
-backdrop.onclick = closeDrawer;
-
-// Helpers
 function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function size(n){ return Math.max(10, Math.sqrt(n)*3.5); }  // veći marker = lakši klik
-function getMulti(sel){ return Array.from(sel.options).filter(o=>o.selected && o.value!=='').map(o=>o.value); }
-function fill(id, list){ list.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; document.getElementById(id).appendChild(o); }); }
-fill('placeSel', OPT_PLACES); fill('instSel', OPT_INSTS); fill('prnSel', OPT_PRN); fill('authSel', OPT_AUTH);
+function size(n){ return Math.max(10, Math.sqrt(n)*3.5); }
 
-// Agregacija po filterima (na razini mjesta)
-function aggregateFiltered(placeItem, instSel, prnSel, authSel, yMin, yMax){
-  const insts = [];
-  let total = 0;
-  const cntPrinters = {}, cntYears = {};
-  placeItem.institutions.forEach(inst => {
-    if (instSel.length && !instSel.includes(inst.name)) return;
-    const ex = inst.exemplars.filter(e => {
-      if (prnSel.length && !prnSel.includes(e.printer)) return false;
-      if (authSel.length && !authSel.includes(e.author)) return false;
-      if (e.year !== null && (e.year < yMin || e.year > yMax)) return false;
-      return true;
-    });
-    if (!ex.length) return;
-    total += ex.length;
-    ex.forEach(e => {
-      if (e.printer) cntPrinters[e.printer] = (cntPrinters[e.printer]||0)+1;
-      if (e.year !== null) cntYears[e.year] = (cntYears[e.year]||0)+1;
-    });
-    insts.push({ name: inst.name, exemplars: ex, count: ex.length });
-  });
-  const printers = Object.entries(cntPrinters).map(([name,count])=>({name, count})).sort((a,b)=>b.count-a.count);
-  const years = Object.entries(cntYears).map(([y,c])=>({year:parseInt(y), count:c})).sort((a,b)=>a.year-b.year);
-  return { institutions: insts, total, printers, years };
-}
-
-// Popup HTML s tri taba
-function popupHTML(place, dataAgg){
-  const uid = Math.abs(Array.from(place).reduce((h,c)=>Math.imul(31,h)+c.charCodeAt(0)|0,0))%1e9;
-
-  const acc = dataAgg.institutions.map(inst=>{
-    const rows = inst.exemplars
-      .map(e=>`<tr>
-                <td>${esc(e.author)}</td>
-                <td>${esc(e.title)}</td>
-                <td class='num'>${e.year??''}</td>
-                <td>${esc(e.printer)}</td>
-                <td>${esc(e.print_place)}</td>
-              </tr>`)
-      .join('') || "<tr><td colspan='5'><em>Nema zapisa</em></td></tr>";
-    return `
-      <div class="acc-item">
-        <div class="acc-head" onclick="this.nextElementSibling.style.display=(this.nextElementSibling.style.display==='block'?'none':'block')">
-          ${esc(inst.name)} — <b>${inst.count}</b>
-        </div>
-        <div class="acc-body">
-          <table class="table-mini">
-            <thead>
-              <tr>
-                <th>Autor</th>
-                <th>Naslov</th>
-                <th class='num'>God.</th>
-                <th>Tiskar</th>
-                <th>Mj. tiska</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>`;
-  }).join('') || "<em>Nema ustanova po zadanim filtrima.</em>";
-
-  const rowsP = dataAgg.printers.map(r=>`<tr><td>${esc(r.name)}</td><td class='num'>${r.count}</td></tr>`).join('') || "<tr><td colspan='2'><em>Nema podataka</em></td></tr>";
-  const rowsY = dataAgg.years.map(r=>`<tr><td>${r.year}</td><td class='num'>${r.count}</td></tr>`).join('') || "<tr><td colspan='2'><em>Nema podataka</em></td></tr>";
-
+function buildInstRow(inst){
+  // tablica (skrivena dok se ne klikne)
+  const rows = inst.exemplars.map(e =>
+    `<tr><td>${esc(e.author)}</td><td>${esc(e.title)}</td><td class='num'>${e.year??''}</td><td>${esc(e.printer)}</td><td>${esc(e.print_place)}</td></tr>`
+  ).join('');
+  const table = `<table class="table-mini">
+      <thead><tr><th>Autor</th><th>Naslov</th><th class='num'>God.</th><th>Tiskar</th><th>Mj. tiska</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  // element accordiona (zatvoren)
+  const uid = Math.random().toString(36).slice(2);
   return `
-    <div class="tab-wrap">
-      <div><b>${esc(place)}</b></div>
-      <div class="muted">Ukupno primjeraka (po filterima): <b>${dataAgg.total}</b></div>
-
-      <input class="tab-input" type="radio" id="tabI-${uid}" name="tabs-${uid}" checked>
-      <label class="tab-label" for="tabI-${uid}">Ustanove</label>
-      <div class="tab-panel">${acc}</div>
-
-      <input class="tab-input" type="radio" id="tabP-${uid}" name="tabs-${uid}">
-      <label class="tab-label" for="tabP-${uid}">Tiskari</label>
-      <div class="tab-panel">
-        <table class="table-mini"><thead><tr><th>Tiskar</th><th class='num'>Broj</th></tr></thead><tbody>${rowsP}</tbody></table>
+    <div class="acc-item" id="acc-${uid}">
+      <div class="acc-head" onclick="const b=document.querySelector('#acc-${uid} .acc-body'); b.style.display=(b.style.display==='block'?'none':'block')">
+        <span>${esc(inst.name)}</span>
+        <span class="count">(${inst.count})</span>
       </div>
-
-      <input class="tab-input" type="radio" id="tabY-${uid}" name="tabs-${uid}">
-      <label class="tab-label" for="tabY-${uid}">Godine</label>
-      <div class="tab-panel">
-        <table class="table-mini"><thead><tr><th>Godina</th><th class='num'>Broj</th></tr></thead><tbody>${rowsY}</tbody></table>
-      </div>
+      <div class="acc-body">${table}</div>
     </div>`;
 }
 
-// Markeri
+function popupHTML(place, insts){
+  // Gornji gumbi za "proširi sve / sklopi sve"
+  const actions = `
+    <div class="acc-actions">
+      <button class="btn" onclick="Array.from(this.closest('.tab-wrap').querySelectorAll('.acc-body')).forEach(b=>b.style.display='block')">Proširi sve</button>
+      <button class="btn" onclick="Array.from(this.closest('.tab-wrap').querySelectorAll('.acc-body')).forEach(b=>b.style.display='none')">Sklopi sve</button>
+    </div>`;
+  const list = insts.map(buildInstRow).join('');
+  return `<div class="tab-wrap">
+            <div style="font-weight:700; margin-bottom:4px;">${esc(place)}</div>
+            ${actions}
+            ${list}
+          </div>`;
+}
+
 function buildMarkers(items){
-  const cl = window._cluster || L.markerClusterGroup({ disableClusteringAtZoom:9, spiderfyOnMaxZoom:true });
-  if (!window._cluster) { window._cluster = cl; map.addLayer(cl); }
-  cl.clearLayers();
+  cluster.clearLayers();
   const bounds=[];
+  const popup = L.popup({ maxWidth: 900, autoPan: false, closeOnClick: false });
   items.forEach(it=>{
     const m=L.circleMarker([it.lat,it.lon],{radius:size(it.total),color:'#0d47a1',weight:1,fillColor:'#1e3a8a',fillOpacity:0.70})
       .bindTooltip(`${esc(it.place)} — ${it.total}`,{sticky:true});
-    cl.addLayer(m);
+    cluster.addLayer(m);
     bounds.push([it.lat,it.lon]);
     m.on('click', ()=>{
-      const instSel = getMulti(document.getElementById('instSel'));
-      const prnSel  = getMulti(document.getElementById('prnSel'));
-      const authSel = getMulti(document.getElementById('authSel'));
-      const yMin    = parseInt(document.getElementById('yMin').value) || YEAR_MIN;
-      const yMax    = parseInt(document.getElementById('yMax').value) || YEAR_MAX;
-      const agg = aggregateFiltered(it, instSel, prnSel, authSel, yMin, yMax);
-      m.bindPopup(popupHTML(it.place, agg), {maxWidth: 640, closeOnClick: false, autoPanPaddingTopLeft:[20,20], autoPan:true}).openPopup();
+      popup.setLatLng([it.lat,it.lon]).setContent(popupHTML(it.place, it.institutions));
+      popup.openOn(map);
     });
   });
   if(bounds.length) map.fitBounds(bounds,{maxZoom:8});
 }
 
-// Filtri
-function applyFilters(){
-  const placeSel = getMulti(document.getElementById('placeSel'));
-  const instSel  = getMulti(document.getElementById('instSel'));
-  const prnSel   = getMulti(document.getElementById('prnSel'));
-  const authSel  = getMulti(document.getElementById('authSel'));
-  const yMin     = parseInt(document.getElementById('yMin').value) || YEAR_MIN;
-  const yMax     = parseInt(document.getElementById('yMax').value) || YEAR_MAX;
-
-  const filtered = RAW.map(it=>{
-    if (placeSel.length && !placeSel.includes(it.place)) return null;
-    const agg = aggregateFiltered(it, instSel, prnSel, authSel, yMin, yMax);
-    if (agg.total===0) return null;
-    return { ...it, total: agg.total };
-  }).filter(Boolean);
-
-  buildMarkers(filtered);
-  closeDrawer();
-}
-function resetFilters(){
-  document.querySelectorAll('#placeSel option,#instSel option,#prnSel option,#authSel option').forEach(o=>o.selected=false);
-  document.getElementById('yMin').value = YEAR_MIN;
-  document.getElementById('yMax').value = YEAR_MAX;
-  buildMarkers(RAW);
-  closeDrawer();
-}
-document.getElementById('applyBtn').onclick = applyFilters;
-document.getElementById('resetBtn').onclick = resetFilters;
-
-// inicijalni prikaz
-resetFilters();
+buildMarkers(RAW);
 </script>
 </body>
 </html>
